@@ -44,7 +44,7 @@ const CREATE_TASK_TOOL: Tool = {
 
 const GET_TASKS_TOOL: Tool = {
   name: "todoist_get_tasks",
-  description: "Get a list of tasks from Todoist with various filters",
+  description: "Get a list of tasks from Todoist with various filters. Note: use filter:'all' to see all tasks",
   inputSchema: {
     type: "object",
     properties: {
