@@ -563,12 +563,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     
       try {
-        const updateData: any = {};
-        if (args.content) updateData.content = args.content;
-        if (args.description) updateData.description = args.description;
-        if (args.due_string) updateData.dueString = args.due_string;
-        if (args.priority) updateData.priority = args.priority;
-        if (args.project_id) updateData.projectId = args.project_id;
+        // Build the complete update data with type assertion
+        const updateData = {
+          projectId: args.project_id,
+          content: args.content,
+          description: args.description,
+          dueString: args.due_string,
+          priority: args.priority
+        } as { 
+          projectId?: string,
+          content?: string,
+          description?: string,
+          dueString?: string,
+          priority?: number
+        };
+
+        // Remove undefined properties
+        Object.keys(updateData).forEach(key => 
+          updateData[key as keyof typeof updateData] === undefined && delete updateData[key as keyof typeof updateData]
+        );
     
         // Log the update attempt for debugging
         console.error('Updating task:', matchingTask.id, 'with data:', JSON.stringify(updateData));
