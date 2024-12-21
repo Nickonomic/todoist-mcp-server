@@ -121,6 +121,28 @@ const DELETE_TASK_TOOL: Tool = {
   }
 };
 
+const BULK_DELETE_TASKS_TOOL: Tool = {
+  name: "todoist_bulk_delete_tasks",
+  description: "Delete multiple tasks from Todoist based on filters, with option to keep specific tasks",
+  inputSchema: {
+    type: "object",
+    properties: {
+      keep_task_name: {
+        type: "string",
+        description: "Name of the task to keep (all other matching tasks will be deleted)"
+      },
+      project_id: {
+        type: "string",
+        description: "Delete tasks only from this project (optional)"
+      },
+      filter: {
+        type: "string",
+        description: "Natural language filter like 'today', 'overdue' (optional)"
+      }
+    }
+  }
+};
+
 const COMPLETE_TASK_TOOL: Tool = {
   name: "todoist_complete_task",
   description: "Mark a task as complete by searching for it by name",
@@ -382,6 +404,18 @@ function isCompleteTaskArgs(args: unknown): args is {
   );
 }
 
+// Add type guard for bulk delete
+function isBulkDeleteTasksArgs(args: unknown): args is {
+  keep_task_name?: string;
+  project_id?: string;
+  filter?: string;
+} {
+  return (
+    typeof args === "object" &&
+    args !== null
+  );
+}
+
 // Tool handlers
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
@@ -394,7 +428,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     GET_PROJECT_TOOL,
     CREATE_PROJECT_TOOL,
     UPDATE_PROJECT_TOOL,
-    DELETE_PROJECT_TOOL
+    DELETE_PROJECT_TOOL,
+    BULK_DELETE_TASKS_TOOL
   ],
 }));
 
@@ -680,6 +715,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [{ 
           type: "text", 
           text: `Successfully completed task: "${matchingTask.content}"` 
+        }],
+        isError: false,
+      };
+    }
+
+    if (name === "todoist_bulk_delete_tasks") {
+      if (!isBulkDeleteTasksArgs(args)) {
+        throw new Error("Invalid arguments for todoist_bulk_delete_tasks");
+      }
+
+      // Get tasks based on filters
+      const tasks = await todoistClient.getTasks({
+        projectId: args.project_id,
+        filter: args.filter
+      });
+
+      // Filter out the task to keep if specified
+      const tasksToDelete = args.keep_task_name 
+        ? tasks.filter(task => !task.content.toLowerCase().includes(args.keep_task_name!.toLowerCase()))
+        : tasks;
+
+      // Delete tasks in parallel for better performance
+      const deletePromises = tasksToDelete.map(task => todoistClient.deleteTask(task.id));
+      await Promise.all(deletePromises);
+
+      return {
+        content: [{ 
+          type: "text", 
+          text: `Successfully deleted ${tasksToDelete.length} tasks${args.keep_task_name ? ` (kept task matching "${args.keep_task_name}")` : ''}`
         }],
         isError: false,
       };
