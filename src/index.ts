@@ -545,13 +545,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (!isUpdateTaskArgs(args)) {
         throw new Error("Invalid arguments for todoist_update_task");
       }
-
+    
       // First, search for the task
       const tasks = await todoistClient.getTasks();
       const matchingTask = tasks.find(task => 
         task.content.toLowerCase().includes(args.task_name.toLowerCase())
       );
-
+    
       if (!matchingTask) {
         return {
           content: [{ 
@@ -561,24 +561,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: true,
         };
       }
-
+    
       // Build update data
       const updateData: any = {};
       if (args.content) updateData.content = args.content;
       if (args.description) updateData.description = args.description;
       if (args.due_string) updateData.dueString = args.due_string;
       if (args.priority) updateData.priority = args.priority;
-      if (args.project_id) updateData.projectId = args.project_id;  // Add this
-
-      const updatedTask = await todoistClient.updateTask(matchingTask.id, updateData);
-      
-      return {
-        content: [{ 
-          type: "text", 
-          text: `Task "${matchingTask.content}" updated:\nNew Title: ${updatedTask.content}${updatedTask.description ? `\nNew Description: ${updatedTask.description}` : ''}${updatedTask.due ? `\nNew Due Date: ${updatedTask.due.string}` : ''}${updatedTask.priority ? `\nNew Priority: ${updatedTask.priority}` : ''}` 
-        }],
-        isError: false,
-      };
+      if (args.project_id) updateData.projectId = args.project_id;  // Make sure this matches the API's expected format
+    
+      try {
+        const updatedTask = await todoistClient.updateTask(matchingTask.id, updateData);
+        return {
+          content: [{ 
+            type: "text", 
+            text: `Task "${matchingTask.content}" updated:\nNew Title: ${updatedTask.content}${updatedTask.description ? `\nNew Description: ${updatedTask.description}` : ''}${updatedTask.projectId ? `\nNew Project ID: ${updatedTask.projectId}` : ''}${updatedTask.due ? `\nNew Due Date: ${updatedTask.due.string}` : ''}${updatedTask.priority ? `\nNew Priority: ${updatedTask.priority}` : ''}` 
+          }],
+          isError: false,
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: "text", 
+            text: `Error updating task: ${error instanceof Error ? error.message : String(error)}` 
+          }],
+          isError: true,
+        };
+      }
     }
 
     if (name === "todoist_delete_task") {
