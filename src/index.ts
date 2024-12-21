@@ -24,6 +24,10 @@ const CREATE_TASK_TOOL: Tool = {
         type: "string",
         description: "Detailed description of the task (optional)"
       },
+      project_id: {
+        type: "string",
+        description: "ID of the project to add the task to (optional)"
+      },
       due_string: {
         type: "string",
         description: "Natural language due date like 'tomorrow', 'next Monday', 'Jan 23' (optional)"
@@ -312,6 +316,7 @@ const todoistClient = new TodoistApi(TODOIST_API_TOKEN);
 function isCreateTaskArgs(args: unknown): args is { 
   content: string;
   description?: string;
+  project_id?: string;
   due_string?: string;
   priority?: number;
 } {
@@ -403,13 +408,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const task = await todoistClient.addTask({
         content: args.content,
         description: args.description,
+        projectId: args.project_id,  // Add this line
         dueString: args.due_string,
         priority: args.priority
       });
       return {
         content: [{ 
           type: "text", 
-          text: `Task created:\nTitle: ${task.content}${task.description ? `\nDescription: ${task.description}` : ''}${task.due ? `\nDue: ${task.due.string}` : ''}${task.priority ? `\nPriority: ${task.priority}` : ''}` 
+          text: `Task created:\nTitle: ${task.content}${task.description ? `\nDescription: ${task.description}` : ''}${task.projectId ? `\nProject ID: ${task.projectId}` : ''}${task.due ? `\nDue: ${task.due.string}` : ''}${task.priority ? `\nPriority: ${task.priority}` : ''}` 
         }],
         isError: false,
       };
