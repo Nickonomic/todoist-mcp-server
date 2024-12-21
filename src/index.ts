@@ -562,16 +562,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
     
-      // Build update data
-      const updateData: any = {};
-      if (args.content) updateData.content = args.content;
-      if (args.description) updateData.description = args.description;
-      if (args.due_string) updateData.dueString = args.due_string;
-      if (args.priority) updateData.priority = args.priority;
-      if (args.project_id) updateData.projectId = args.project_id;  // Make sure this matches the API's expected format
-    
       try {
+        const updateData: any = {};
+        if (args.content) updateData.content = args.content;
+        if (args.description) updateData.description = args.description;
+        if (args.due_string) updateData.dueString = args.due_string;
+        if (args.priority) updateData.priority = args.priority;
+        if (args.project_id) updateData.projectId = args.project_id;
+    
+        // Log the update attempt for debugging
+        console.error('Updating task:', matchingTask.id, 'with data:', JSON.stringify(updateData));
+    
         const updatedTask = await todoistClient.updateTask(matchingTask.id, updateData);
+        
         return {
           content: [{ 
             type: "text", 
@@ -580,6 +583,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           isError: false,
         };
       } catch (error) {
+        console.error('Update Error:', error);
         return {
           content: [{ 
             type: "text", 
