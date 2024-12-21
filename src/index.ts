@@ -556,42 +556,54 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return {
           content: [{ 
             type: "text", 
-            text: `Could not find a task matching "${args.task_name}"` 
+            text: `Could not find a task matching "${args.task_name}". Please provide a more specific task name.` 
           }],
           isError: true,
         };
       }
-    
-      try {
-        // Build the complete update data with type assertion
-        const updateData = {
-          projectId: args.project_id,
-          content: args.content,
-          description: args.description,
-          dueString: args.due_string,
-          priority: args.priority
-        } as { 
-          projectId?: string,
-          content?: string,
-          description?: string,
-          dueString?: string,
-          priority?: number
-        };
 
-        // Remove undefined properties
-        Object.keys(updateData).forEach(key => 
-          updateData[key as keyof typeof updateData] === undefined && delete updateData[key as keyof typeof updateData]
-        );
-    
-        // Log the update attempt for debugging
-        console.error('Updating task:', matchingTask.id, 'with data:', JSON.stringify(updateData));
-    
+      try {
+        // If project_id is provided, use delete-and-recreate approach
+        if (args.project_id) {
+          // Create new task in target project with all original properties
+          const newTask = await todoistClient.addTask({
+            content: matchingTask.content,
+            description: matchingTask.description,
+            projectId: args.project_id,
+            priority: matchingTask.priority,
+            dueString: matchingTask.due?.string,
+            labels: matchingTask.labels
+          });
+
+          // Delete the original task
+          await todoistClient.deleteTask(matchingTask.id);
+
+          return {
+            content: [{ 
+              type: "text", 
+              text: `Successfully moved task:\nTask: "${matchingTask.content}"\nFrom: Project ${matchingTask.projectId}\nTo: Project ${newTask.projectId}\nAll task properties (description, due date, priority, labels) were preserved.`
+            }],
+            isError: false,
+          };
+        }
+
+        // For non-project updates, use normal update
+        const updateData: any = {};
+        if (args.content) updateData.content = args.content;
+        if (args.description) updateData.description = args.description;
+        if (args.due_string) updateData.dueString = args.due_string;
+        if (args.priority) updateData.priority = args.priority;
+
         const updatedTask = await todoistClient.updateTask(matchingTask.id, updateData);
         
         return {
           content: [{ 
             type: "text", 
-            text: `Task "${matchingTask.content}" updated:\nNew Title: ${updatedTask.content}${updatedTask.description ? `\nNew Description: ${updatedTask.description}` : ''}${updatedTask.projectId ? `\nNew Project ID: ${updatedTask.projectId}` : ''}${updatedTask.due ? `\nNew Due Date: ${updatedTask.due.string}` : ''}${updatedTask.priority ? `\nNew Priority: ${updatedTask.priority}` : ''}` 
+            text: `Successfully updated task:\nOriginal Title: "${matchingTask.content}"\nUpdated Properties:\n${
+              Object.entries(updateData)
+                .map(([key, value]) => `- ${key}: ${value}`)
+                .join('\n')
+            }`
           }],
           isError: false,
         };
@@ -600,7 +612,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return {
           content: [{ 
             type: "text", 
-            text: `Error updating task: ${error instanceof Error ? error.message : String(error)}` 
+            text: `Failed to update task. Error: ${error instanceof Error ? error.message : String(error)}. Please try again or provide different parameters.` 
           }],
           isError: true,
         };
