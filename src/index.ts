@@ -128,6 +128,163 @@ const COMPLETE_TASK_TOOL: Tool = {
   }
 };
 
+// Project-related tools
+const GET_PROJECTS_TOOL: Tool = {
+  name: "todoist_get_projects",
+  description: "Get all projects from Todoist",
+  inputSchema: {
+    type: "object",
+    properties: {}  // No required parameters
+  }
+};
+
+const GET_PROJECT_TOOL: Tool = {
+  name: "todoist_get_project",
+  description: "Get a specific project by ID",
+  inputSchema: {
+    type: "object",
+    properties: {
+      project_id: {
+        type: "string",
+        description: "ID of the project to retrieve"
+      }
+    },
+    required: ["project_id"]
+  }
+};
+
+const CREATE_PROJECT_TOOL: Tool = {
+  name: "todoist_create_project",
+  description: "Create a new project in Todoist",
+  inputSchema: {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "Name of the project"
+      },
+      parent_id: {
+        type: "string",
+        description: "Parent project ID (optional)"
+      },
+      color: {
+        type: "string",
+        description: "The color of the project icon (optional)"
+      },
+      is_favorite: {
+        type: "boolean",
+        description: "Whether the project is a favorite (optional)"
+      },
+      view_style: {
+        type: "string",
+        description: "Display style: 'list' or 'board' (optional)",
+        enum: ["list", "board"]
+      }
+    },
+    required: ["name"]
+  }
+};
+
+const UPDATE_PROJECT_TOOL: Tool = {
+  name: "todoist_update_project",
+  description: "Update an existing project in Todoist",
+  inputSchema: {
+    type: "object",
+    properties: {
+      project_id: {
+        type: "string",
+        description: "ID of the project to update"
+      },
+      name: {
+        type: "string",
+        description: "New name for the project (optional)"
+      },
+      color: {
+        type: "string",
+        description: "New color for the project icon (optional)"
+      },
+      is_favorite: {
+        type: "boolean",
+        description: "Whether the project is a favorite (optional)"
+      },
+      view_style: {
+        type: "string",
+        description: "Display style: 'list' or 'board' (optional)",
+        enum: ["list", "board"]
+      }
+    },
+    required: ["project_id"]
+  }
+};
+
+const DELETE_PROJECT_TOOL: Tool = {
+  name: "todoist_delete_project",
+  description: "Delete a project and all its tasks",
+  inputSchema: {
+    type: "object",
+    properties: {
+      project_id: {
+        type: "string",
+        description: "ID of the project to delete"
+      }
+    },
+    required: ["project_id"]
+  }
+};
+
+// Project-related type guards
+function isGetProjectArgs(args: unknown): args is {
+  project_id: string;
+} {
+  return (
+    typeof args === "object" &&
+    args !== null &&
+    "project_id" in args &&
+    typeof (args as { project_id: string }).project_id === "string"
+  );
+}
+
+function isCreateProjectArgs(args: unknown): args is {
+  name: string;
+  parent_id?: string;
+  color?: string;
+  is_favorite?: boolean;
+  view_style?: "list" | "board";
+} {
+  return (
+    typeof args === "object" &&
+    args !== null &&
+    "name" in args &&
+    typeof (args as { name: string }).name === "string"
+  );
+}
+
+function isUpdateProjectArgs(args: unknown): args is {
+  project_id: string;
+  name?: string;
+  color?: string;
+  is_favorite?: boolean;
+  view_style?: "list" | "board";
+} {
+  return (
+    typeof args === "object" &&
+    args !== null &&
+    "project_id" in args &&
+    typeof (args as { project_id: string }).project_id === "string"
+  );
+}
+
+function isDeleteProjectArgs(args: unknown): args is {
+  project_id: string;
+} {
+  return (
+    typeof args === "object" &&
+    args !== null &&
+    "project_id" in args &&
+    typeof (args as { project_id: string }).project_id === "string"
+  );
+}
+
 // Server implementation
 const server = new Server(
   {
@@ -217,7 +374,18 @@ function isCompleteTaskArgs(args: unknown): args is {
 
 // Tool handlers
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [CREATE_TASK_TOOL, GET_TASKS_TOOL, UPDATE_TASK_TOOL, DELETE_TASK_TOOL, COMPLETE_TASK_TOOL],
+  tools: [
+    CREATE_TASK_TOOL, 
+    GET_TASKS_TOOL, 
+    UPDATE_TASK_TOOL, 
+    DELETE_TASK_TOOL, 
+    COMPLETE_TASK_TOOL,
+    GET_PROJECTS_TOOL,
+    GET_PROJECT_TOOL,
+    CREATE_PROJECT_TOOL,
+    UPDATE_PROJECT_TOOL,
+    DELETE_PROJECT_TOOL
+  ],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -242,6 +410,87 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [{ 
           type: "text", 
           text: `Task created:\nTitle: ${task.content}${task.description ? `\nDescription: ${task.description}` : ''}${task.due ? `\nDue: ${task.due.string}` : ''}${task.priority ? `\nPriority: ${task.priority}` : ''}` 
+        }],
+        isError: false,
+      };
+    }
+
+    if (name === "todoist_get_projects") {
+      const projects = await todoistClient.getProjects();
+      return {
+        content: [{ 
+          type: "text", 
+          text: projects.map(project => 
+            `- ${project.name}\n  ID: ${project.id}${project.parentId ? `\n  Parent ID: ${project.parentId}` : ''}\n  Color: ${project.color}\n  Favorite: ${project.isFavorite}`
+          ).join('\n\n')
+        }],
+        isError: false,
+      };
+    }
+
+    if (name === "todoist_get_project") {
+      if (!isGetProjectArgs(args)) {
+        throw new Error("Invalid arguments for todoist_get_project");
+      }
+      const project = await todoistClient.getProject(args.project_id);
+      return {
+        content: [{ 
+          type: "text", 
+          text: `Project Details:\nName: ${project.name}\nID: ${project.id}${project.parentId ? `\nParent ID: ${project.parentId}` : ''}\nColor: ${project.color}\nFavorite: ${project.isFavorite}` 
+        }],
+        isError: false,
+      };
+    }
+
+    if (name === "todoist_create_project") {
+      if (!isCreateProjectArgs(args)) {
+        throw new Error("Invalid arguments for todoist_create_project");
+      }
+      const project = await todoistClient.addProject({
+        name: args.name,
+        parentId: args.parent_id,
+        color: args.color,
+        isFavorite: args.is_favorite,
+        viewStyle: args.view_style
+      });
+      return {
+        content: [{ 
+          type: "text", 
+          text: `Project created:\nName: ${project.name}\nID: ${project.id}${project.parentId ? `\nParent ID: ${project.parentId}` : ''}\nColor: ${project.color}\nFavorite: ${project.isFavorite}` 
+        }],
+        isError: false,
+      };
+    }
+
+    if (name === "todoist_update_project") {
+      if (!isUpdateProjectArgs(args)) {
+        throw new Error("Invalid arguments for todoist_update_project");
+      }
+      const updateData: any = {};
+      if (args.name) updateData.name = args.name;
+      if (args.color) updateData.color = args.color;
+      if (args.is_favorite !== undefined) updateData.isFavorite = args.is_favorite;
+      if (args.view_style) updateData.viewStyle = args.view_style;
+
+      const project = await todoistClient.updateProject(args.project_id, updateData);
+      return {
+        content: [{ 
+          type: "text", 
+          text: `Project updated:\nName: ${project.name}\nID: ${project.id}\nColor: ${project.color}\nFavorite: ${project.isFavorite}` 
+        }],
+        isError: false,
+      };
+    }
+
+    if (name === "todoist_delete_project") {
+      if (!isDeleteProjectArgs(args)) {
+        throw new Error("Invalid arguments for todoist_delete_project");
+      }
+      await todoistClient.deleteProject(args.project_id);
+      return {
+        content: [{ 
+          type: "text", 
+          text: `Successfully deleted project with ID: ${args.project_id}` 
         }],
         isError: false,
       };
