@@ -84,6 +84,10 @@ const UPDATE_TASK_TOOL: Tool = {
         type: "string",
         description: "New content/title for the task (optional)"
       },
+      project_id: {  // Add this
+        type: "string",
+        description: "New project ID to move the task to (optional)"
+      },
       description: {
         type: "string",
         description: "New description for the task (optional)"
@@ -343,6 +347,7 @@ function isGetTasksArgs(args: unknown): args is {
 function isUpdateTaskArgs(args: unknown): args is {
   task_name: string;
   content?: string;
+  project_id?: string;  // Add this
   description?: string;
   due_string?: string;
   priority?: number;
@@ -563,6 +568,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (args.description) updateData.description = args.description;
       if (args.due_string) updateData.dueString = args.due_string;
       if (args.priority) updateData.priority = args.priority;
+      if (args.project_id) updateData.projectId = args.project_id;  // Add this
 
       const updatedTask = await todoistClient.updateTask(matchingTask.id, updateData);
       
